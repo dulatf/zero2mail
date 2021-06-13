@@ -17,7 +17,15 @@ name = "zero2mail"
 actix-web = "=4.0.0-beta.6"
 actix-http = "=3.0.0-beta.6"
 actix-service = "=2.0.0"
-serde = {version= "1.0.126", features = ["derive"]}
+serde = { version = "1.0.126", features = ["derive"] }
+sqlx = { version = "*", default-features = false, features = [
+    "runtime-actix-rustls",
+    "macros",
+    "postgres",
+    "uuid",
+    "chrono",
+    "migrate",
+] }
 
 [dev-dependencies]
 actix-rt = "2.2.0"
