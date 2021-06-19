@@ -1,5 +1,7 @@
 use actix_web::{web, HttpResponse};
 #[derive(serde::Deserialize)]
+#[allow(dead_code)]
+
 pub struct SubscribeFormData {
     name: String,
     email: String,
