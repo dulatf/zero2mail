@@ -1,7 +1,8 @@
 use reqwest::Client;
-use sqlx::PgPool;
+use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
-use zero2mail::configuration::get_configuration;
+use uuid::Uuid;
+use zero2mail::configuration::{get_configuration, DatabaseSettings};
 #[actix_rt::test]
 async fn health_check_works() {
     let test_app = spawn_app().await;
@@ -23,16 +24,37 @@ async fn spawn_app() -> TestApp {
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to random port.");
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
-    let configuration = get_configuration().expect("Failed to load configuration");
-    let pool = PgPool::connect(&configuration.database.connection_string())
-        .await
-        .expect("Failed to connect to Postgres");
+    let mut configuration = get_configuration().expect("Failed to load configuration");
+    configuration.database.database_name = Uuid::new_v4().to_string();
+    let pool = configure_database(&configuration.database).await;
     let server = zero2mail::startup::run(listener, pool.clone()).expect("Failed to bind address.");
     let _ = tokio::spawn(server);
     TestApp {
         address,
         db_pool: pool,
     }
+}
+
+async fn configure_database(config: &DatabaseSettings) -> PgPool {
+    let mut connection = PgConnection::connect(&config.connection_string_no_db())
+        .await
+        .expect("Failed to connect to DB");
+    connection
+        .execute(&*format!(r#"CREATE DATABASE "{}";"#, config.database_name))
+        .await
+        .expect(&format!(
+            "Failed to create database {}",
+            config.database_name
+        ));
+
+    let pool = PgPool::connect(&config.connection_string())
+        .await
+        .expect("Failed to connect to DB");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to migrate db");
+    pool
 }
 
 #[actix_rt::test]
